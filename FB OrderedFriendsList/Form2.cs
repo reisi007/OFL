@@ -34,7 +34,7 @@ namespace FB_OrderedFriendsList
 
         private void Form2_Load(object sender, EventArgs e)
         {
-            try
+           try
             {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://www.facebook.com/");
                 request.CookieContainer = new CookieContainer();
@@ -44,7 +44,7 @@ namespace FB_OrderedFriendsList
                 cookies = response.Cookies;
             }
             catch (Exception ex)
-            { MessageBox.Show(ex.Message, "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error); Application.Exit(); }
+            { MessageBox.Show(ex.Message + Environment.NewLine + Environment.NewLine + "Check your internet connection!", "Error!", MessageBoxButtons.OK, MessageBoxIcon.Error); Application.Exit(); }
         }
         private string getfbpage(string url)
         {
@@ -153,14 +153,39 @@ namespace FB_OrderedFriendsList
             
            if (progress.Value == progress.Maximum)
             {
-               
-                string html = "<html> <head>  <meta content=\"text/html; charset=ISO-8859-1\" http-equiv=\"content-type\"><title>Your Friends</title></head><body>";
-                foreach (people s in storage.warehouse)
+               SortedDictionary<int,string> sd_index_url = new SortedDictionary<int,string>();
+               SortedDictionary<int,string> sd_index_name = new SortedDictionary<int,string>();
+               SortedDictionary<int,bool> sd_index_male = new SortedDictionary<int,bool>();
+              
+               foreach (people p in storage.warehouse)
+               {
+                   if (p.name != null)
+                   {
+                       sd_index_url.Add(p.index, p.url);
+                       sd_index_name.Add(p.index, p.name);
+                       sd_index_male.Add(p.index, p.male);
+                   }
+               }
+               List<people> tmp = new List<people>();
+               for (int k = 0; k < sd_index_url.Count; k++)
+               {
+                   people tmp_people = new people(); // TO DO
+                 /*  tmp_people.index = "";
+                   tmp_people.male = "";
+                   tmp_people.name = "";
+                   tmp_people.url = "";*/
+                   tmp.Add(tmp_people);
+               }
+                string html = "<html> <head>  <meta content=\"text/html; charset=ISO-8859-1\" http-equiv=\"content-type\"><title>Your Friends</title></head><body><table border = \"1\"";
+                html += "<tr><td>Number of Friends</\td> <td>Picture</\td> <td>Name</\td> </\tr>"; 
+               foreach (people s in tmp)
                 {
-
-                    html += "<a href=https://www.facebook.com/" + s.url + ">" + s.name+ "("+s.index + ". Friend)" + "</a><br>" + Environment.NewLine;
-                   
+                    html += Environment.NewLine +"<tr>" ;
+                    html += "<td> "+s.index +" </td>\t";
+                    html += "<td><img src=\"https://graph.facebook.com/" + s.url + "/picture?type=normal\" alt=\"" + s.name + "'s profile picture\"></td>";
+                    html += "\t\t<td><a href=https://www.facebook.com/" + s.url + ">" + s.name + "</a></\td>";
                 }
+                html += "</\tr> </\table>";
                 html += "</body></html>";
                 string path = System.IO.Path.GetTempPath() + "\\file.html";
                 System.IO.File.WriteAllText(path, html);
