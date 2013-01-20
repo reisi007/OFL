@@ -15,6 +15,7 @@ namespace FB_OrderedFriendsList
 {
     public partial class Form2 : Form
     {
+        private int progress_max { get; set; }
         public manage_people storage = new manage_people();
         private BackgroundWorker init_bg_worker()
         {
@@ -34,7 +35,7 @@ namespace FB_OrderedFriendsList
 
         private void Form2_Load(object sender, EventArgs e)
         {
-           try
+            try
             {
                 HttpWebRequest request = (HttpWebRequest)WebRequest.Create("https://www.facebook.com/");
                 request.CookieContainer = new CookieContainer();
@@ -88,6 +89,13 @@ namespace FB_OrderedFriendsList
                 string s_name = httpfile.Remove(0, i_name);
                 i_name = s_name.IndexOf(",") - 1;
                 person.name = s_name.Remove(i_name);
+                person.name = person.name.Replace("\\u00fc", "&uuml;"); //ü
+                person.name = person.name.Replace("\\u00f6", "&ouml;"); // ö
+                person.name = person.name.Replace("\\u00e4", "&auml;"); // ä
+                person.name = person.name.Replace("\\u00f6", "&Üuml;"); // Ü
+                person.name = person.name.Replace("\u00d6", "&Ouml;"); // Ö
+                person.name = person.name.Replace("\\u00c4", "&Auml;"); // Ä
+                person.name = person.name.Replace("\\u00df", "&szlig;"); // ß
                 int g_index = httpfile.IndexOf("gender") + 5;
                 httpfile = httpfile.Remove(0, g_index);
                 httpfile = httpfile.Remove(10);
@@ -147,50 +155,151 @@ namespace FB_OrderedFriendsList
         {
             progress.Value++;
         }
+        private void set_progress_max()
+        {
+            progress.Maximum = progress_max;
+        }
+        private void reset_process()
+        {
+            progress.Value = 0;
+        }
 
         private void worker_ready(object sender, RunWorkerCompletedEventArgs e)
         {
-            
-           if (progress.Value == progress.Maximum)
+
+            if (progress.Value == progress.Maximum)
             {
-               SortedDictionary<int,string> sd_index_url = new SortedDictionary<int,string>();
-               SortedDictionary<int,string> sd_index_name = new SortedDictionary<int,string>();
-               SortedDictionary<int,bool> sd_index_male = new SortedDictionary<int,bool>();
-              
-               foreach (people p in storage.warehouse)
-               {
-                   if (p.name != null)
-                   {
-                       sd_index_url.Add(p.index, p.url);
-                       sd_index_name.Add(p.index, p.name);
-                       sd_index_male.Add(p.index, p.male);
-                   }
-               }
-               List<people> tmp = new List<people>();
-               for (int k = 0; k < sd_index_url.Count; k++)
-               {
-                   people tmp_people = new people(); // TO DO
-                 /*  tmp_people.index = "";
-                   tmp_people.male = "";
-                   tmp_people.name = "";
-                   tmp_people.url = "";*/
-                   tmp.Add(tmp_people);
-               }
-                string html = "<html> <head>  <meta content=\"text/html; charset=ISO-8859-1\" http-equiv=\"content-type\"><title>Your Friends</title></head><body><table border = \"1\"";
-                html += "<tr><td>Number of Friends</\td> <td>Picture</\td> <td>Name</\td> </\tr>"; 
-               foreach (people s in tmp)
+                progress.Invoke(new MethodInvoker(reset_process));
+                Dictionary<int, string> sd_index_url = new Dictionary<int, string>();
+                Dictionary<int, string> sd_index_name = new Dictionary<int, string>();
+                Dictionary<int, bool> sd_index_male = new Dictionary<int, bool>();
+                List<int> l_indexes = new List<int>();
+
+                foreach (people p in storage.warehouse)
                 {
-                    html += Environment.NewLine +"<tr>" ;
-                    html += "<td> "+s.index +" </td>\t";
-                    html += "<td><img src=\"https://graph.facebook.com/" + s.url + "/picture?type=normal\" alt=\"" + s.name + "'s profile picture\"></td>";
-                    html += "\t\t<td><a href=https://www.facebook.com/" + s.url + ">" + s.name + "</a></\td>";
+                    if (p.name != null)
+                    {
+                        sd_index_url.Add(p.index, p.url);
+                        sd_index_name.Add(p.index, p.name);
+                        sd_index_male.Add(p.index, p.male);
+                        l_indexes.Add(p.index);
+                    }
                 }
-                html += "</\tr> </\table>";
-                html += "</body></html>";
+                progress_max = l_indexes.Count;
+                progress.Invoke(new MethodInvoker(set_progress_max));
+                l_indexes.Sort();
+                int[] indexes = l_indexes.ToArray();
+                int index;
+                List<people> tmp = new List<people>();
+                for (int k = 0; k < progress_max; k++)
+                {
+                    progress.BeginInvoke(new MethodInvoker(increase_progress));
+                    index = indexes[k];
+                    people tmp_people = new people();
+                    tmp_people.index = k + 1;
+                    sd_index_male.TryGetValue(index, out tmp_people.male);
+                    sd_index_name.TryGetValue(index, out tmp_people.name);
+                    sd_index_url.TryGetValue(index, out tmp_people.url);
+                    tmp.Add(tmp_people);
+                }
+                string head1 = "<html> <head><meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />  <title>Your Friends</title>";
+                string head2 = "</head>\n";
+                string body1 = "<body><table border = \"1\"";
+                body1 += @"<tr><td><h2>Number of Friends</h2></td> <td><h2>Picture</h2></td> <td><h2>Name</h2></td> </tr>";
+                progress_max = progress_max + tmp.Count;
+                progress.Invoke(new MethodInvoker(set_progress_max));
+                string items = "";
+                string id;
+                foreach (people s in tmp)
+                {
+                    if (s.male)
+                        id = "m";
+                    else
+                        id = "f";
+                    items += Environment.NewLine + "<tr class=\""+id+"\">";
+                    items += "<td> " + s.index + " </td>\t";
+                    items += "<td><a href=\"https://graph.facebook.com/" + s.url + "/picture?type=large\"title=\"" + s.name + "\" class=\"preview\"><img src=\"https://graph.facebook.com/" + s.url + "/picture\" alt=\"" + s.name + "'s profile picture\"/></a></td>";
+                    items += "\t\t<td><a id=\"" + id + "\" href=https://www.facebook.com/" + s.url + ">" + s.name + "</a></td>";
+                    progress.BeginInvoke(new MethodInvoker(increase_progress));
+                }
+                string body2 = "</tr> </table>";
+                body2 += copyright();
+                body2 += "</body></html>";
                 string path = System.IO.Path.GetTempPath() + "\\file.html";
-                System.IO.File.WriteAllText(path, html);
+                System.IO.File.WriteAllText(path, head1 + Environment.NewLine + js() + Environment.NewLine + css() + Environment.NewLine + head2 + Environment.NewLine + body1 + Environment.NewLine + items + Environment.NewLine + body2);
                 Process.Start(path);
             }
+        }
+        /* Parts of the webpage
+         * head1
+         * js
+         * css
+         * heads2
+         * body1
+         * items
+         * body2
+         * end*/
+        private string js()
+        {
+            string html = "</script><script type=\"text/javascript\" src=\"http://cssglobe.com/lab/tooltip/02/jquery.js \"></script>" + Environment.NewLine + Environment.NewLine;
+            ;
+            html += "<script type=\"text/javascript\" src=\"http://cssglobe.com/lab/tooltip/02/main.js \"></script>";
+
+            return html;
+        }
+        private string copyright()
+        {
+            string year = DateTime.Now.ToString("yyyy");
+            string copy = "&copy; 2012-" + year + " Reisisoft";
+            return "<p><div align=\"center\">" + copy + "</div>";
+        }
+        private string css()
+        {
+            return "   <style>" + Environment.NewLine +
+      "body {" + Environment.NewLine +
+          "margin:0;" + Environment.NewLine +
+          "padding:40px;" + Environment.NewLine +
+          "background:#ffffff;" + Environment.NewLine +
+          "font:80% Arial, Helvetica, sans-serif;" + Environment.NewLine +
+          "align:\"center\";" + Environment.NewLine +
+          "color:#ffffff;" + Environment.NewLine +
+          "line-height:180%;" + Environment.NewLine +
+      "}" + Environment.NewLine +
+
+      "h2{" + Environment.NewLine +
+          "font-size:120%;" + Environment.NewLine +
+          "font-weight:normal;" + Environment.NewLine +
+          "color:#1b1b1b;" + Environment.NewLine +
+          "text-align: center;" + Environment.NewLine +
+      "}" + Environment.NewLine +
+      "td{text-align: center;}" + Environment.NewLine +
+      "a{" + Environment.NewLine +
+          "text-decoration:none;" + Environment.NewLine +
+      "}" + Environment.NewLine +
+      "p{" + Environment.NewLine +
+          "clear:both;" + Environment.NewLine +
+          "margin:0;" + Environment.NewLine +
+          "padding:.5em 0;" + Environment.NewLine +
+      "}" + Environment.NewLine +
+      "img{border:none;}" + Environment.NewLine +
+      
+      "/*  */" + Environment.NewLine +
+      ".m {background-color: #00A0FC; text-decoration: underline;}" + Environment.NewLine +
+      ".f {background-color: #E327FF; text-decoration: underline;}" + Environment.NewLine +
+      "a { color: ffffff;}"+ Environment.NewLine +
+      "a#m:hover {color:#E327FF;}" + Environment.NewLine +
+      "a#f:hover {color:#00A0FC;}" + Environment.NewLine +
+      "#preview{" + Environment.NewLine +
+      "	position:absolute;" + Environment.NewLine +
+      "	border:1px solid #ccc;" + Environment.NewLine +
+      "	background:#333;" + Environment.NewLine +
+      "	padding:5px;" + Environment.NewLine +
+      "	display:none;" + Environment.NewLine +
+      "	color:#fff;" + Environment.NewLine +
+      "	}" + Environment.NewLine +
+      "" + Environment.NewLine +
+      "/*  */" + Environment.NewLine +
+      "</style>";
         }
     }
     public struct multithread
@@ -212,6 +321,6 @@ namespace FB_OrderedFriendsList
         {
             warehouse = new List<people>();
         }
-       public List<people> warehouse;
+        public List<people> warehouse;
     }
 }
